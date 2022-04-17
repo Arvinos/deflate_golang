@@ -40,6 +40,21 @@ func writeStoredBlock(src []byte, dst []byte) (in uint32, out uint32, res uint32
 	return uint32(lenV), uint32(4 + lenV), 0
 }
 
+func (state *Deflate) writeDeflateStoredBlocks() uint32 {
+	result := state.writeStoredDeflateHeader(true)
+
+	if result != 0 {
+		return result
+	}
+
+	bytesIn, bytesOut, result := writeStoredBlock(state.input, state.output)
+
+	state.input = state.input[bytesIn:]
+	state.output = state.output[bytesOut:]
+
+	return 0
+}
+
 func readStoredBlock(src []byte, dst []byte) (in uint32, out uint32, res uint32) {
 	if 4 > len(src) {
 		return 0, 0, 1
@@ -113,18 +128,7 @@ func (state *Deflate) Compress(src []byte, dst []byte) (in uint32, out uint32, r
 	state.output = dst[:]
 
 	if res == 1 {
-		result := state.writeStoredDeflateHeader(true)
-
-		if result != 0 {
-			return in, uint32(len(dst) - len(state.output)), result
-		}
-
-		bytesIn, bytesOut, result := writeStoredBlock(state.input, state.output)
-
-		state.input = state.input[bytesIn:]
-		state.output = state.output[bytesOut:]
-
-		res = result
+		res = state.writeDeflateStoredBlocks()
 	}
 
 	return uint32(len(src) - len(state.input)), uint32(len(dst) - len(state.output)), res
