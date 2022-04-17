@@ -8,6 +8,9 @@ type Compressor interface {
 }
 
 type Deflate struct {
+	storedBlock bool
+	blockFinal  bool
+	eosFound    bool
 }
 
 func writeStoredBlock(src []byte, dst []byte) (in uint32, out uint32, res uint32) {
@@ -63,6 +66,13 @@ func readStoredBlock(src []byte, dst []byte) (in uint32, out uint32, res uint32)
 	return uint32(4 + lenV), uint32(lenV), 0
 }
 
+func (state *Deflate) readHeader(src []byte, dst []byte) (uint32, uint32, uint32) {
+
+	state.storedBlock = true
+
+	return 0, 0, 0
+}
+
 func (state *Deflate) Compress(src []byte, dst []byte) (in uint32, out uint32, res uint32) {
 	in = 0
 	out = 0
@@ -80,8 +90,19 @@ func (state *Deflate) Decompress(src []byte, dst []byte) (in uint32, out uint32,
 	out = 0
 	res = 1
 
-	if res == 1 {
-		in, out, res = readStoredBlock(src, dst)
+	for int(in) < len(src) && !state.eosFound {
+		in, out, res = state.readHeader(src, dst)
+
+		if state.storedBlock {
+			in, out, res = readStoredBlock(src, dst)
+			state.eosFound = true
+		} else {
+			// to implement
+		}
+
+		if res != 0 {
+			return in, out, res
+		}
 	}
 
 	return in, out, res
