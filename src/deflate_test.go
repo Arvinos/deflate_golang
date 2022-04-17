@@ -82,8 +82,6 @@ func TestDeflateFixed(t *testing.T) {
 	compressedData := make([]byte, len(testData)*2)
 	outputData := make([]byte, len(testData))
 
-	fmt.Println(testData)
-
 	deflate := new(Deflate)
 
 	in, out, ret := deflate.Compress(testData, compressedData)
@@ -114,8 +112,6 @@ func TestDeflateDynamic(t *testing.T) {
 	compressedData := make([]byte, len(testData)*2)
 	outputData := make([]byte, len(testData))
 
-	fmt.Println(testData)
-
 	deflate := new(Deflate)
 
 	in, out, ret := deflate.Compress(testData, compressedData)
@@ -133,14 +129,18 @@ func TestDeflateDynamic(t *testing.T) {
 	}
 
 	fmt.Println("Input bytes = ", in, ", Decompressed bytes = ", out)
+
+	if !bytes.Equal(testData, outputData) {
+		fmt.Println(testData)
+		fmt.Println(outputData)
+		panic("Data is not equal")
+	}
 }
 
 func TestDeflate(t *testing.T) {
 	testData := lzGenerator(96, 0.25)
 	compressedData := make([]byte, len(testData)*2)
 	outputData := make([]byte, len(testData))
-
-	fmt.Println(testData)
 
 	deflate := new(Deflate)
 
