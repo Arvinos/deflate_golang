@@ -162,7 +162,7 @@ func (state *Deflate) Decompress(src []byte, dst []byte) (in uint32, out uint32,
 		res = state.readHeader()
 
 		if res != 0 {
-			return in, out, res
+			return uint32(len(src) - len(state.input)), uint32(len(dst) - len(state.output)), res
 		}
 
 		if state.storedBlock {
