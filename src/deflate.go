@@ -11,6 +11,8 @@ type Deflate struct {
 	storedBlock bool
 	blockFinal  bool
 	eosFound    bool
+	output      []byte
+	input       []byte
 }
 
 func writeStoredBlock(src []byte, dst []byte) (in uint32, out uint32, res uint32) {
@@ -66,7 +68,13 @@ func readStoredBlock(src []byte, dst []byte) (in uint32, out uint32, res uint32)
 	return uint32(4 + lenV), uint32(lenV), 0
 }
 
-func (state *Deflate) readHeader(src []byte, dst []byte) (uint32, uint32, uint32) {
+func (state *Deflate) writeStoredDeflateHeader(block bool) (out uint32, res uint32) {
+	state.output[0] = 0b10000000
+
+	return 1, 0
+}
+
+func (state *Deflate) readHeader() (uint32, uint32, uint32) {
 
 	state.storedBlock = true
 
@@ -78,8 +86,11 @@ func (state *Deflate) Compress(src []byte, dst []byte) (in uint32, out uint32, r
 	out = 0
 	res = 1
 
+	state.input = src[:]
+	state.output = dst[:]
+
 	if res == 1 {
-		in, out, res = writeStoredBlock(src, dst)
+		in, out, res = writeStoredBlock(state.input, state.output)
 	}
 
 	return in, out, res
@@ -90,11 +101,14 @@ func (state *Deflate) Decompress(src []byte, dst []byte) (in uint32, out uint32,
 	out = 0
 	res = 1
 
+	state.input = src[:]
+	state.output = dst[:]
+
 	for int(in) < len(src) && !state.eosFound {
-		in, out, res = state.readHeader(src, dst)
+		in, out, res = state.readHeader()
 
 		if state.storedBlock {
-			in, out, res = readStoredBlock(src, dst)
+			in, out, res = readStoredBlock(state.input, state.output)
 			state.eosFound = true
 		} else {
 			// to implement
