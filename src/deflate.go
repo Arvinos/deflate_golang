@@ -68,17 +68,40 @@ func readStoredBlock(src []byte, dst []byte) (in uint32, out uint32, res uint32)
 	return uint32(4 + lenV), uint32(lenV), 0
 }
 
-func (state *Deflate) writeStoredDeflateHeader(block bool) (out uint32, res uint32) {
-	state.output[0] = 0b10000000
+func (state *Deflate) writeStoredDeflateHeader(isFinalBlock bool) (res uint32) {
+	if isFinalBlock {
+		state.output[0] = 0b10000000
+	} else {
+		state.output[0] = 0
+	}
 
-	return 1, 0
+	state.output = state.output[1:]
+
+	return 0
 }
 
-func (state *Deflate) readHeader() (uint32, uint32, uint32) {
+func (state *Deflate) readHeader() (res uint32) {
+	typeHeader := state.input[0] >> 5
 
-	state.storedBlock = true
+	if (typeHeader & 0b100) != 0 {
+		state.blockFinal = true
+	}
 
-	return 0, 0, 0
+	typeHeader &= 0b011
+
+	switch typeHeader {
+	case 0:
+		state.storedBlock = true
+		state.input = state.input[1:]
+	case 1:
+		fallthrough
+	case 2:
+		fallthrough
+	case 3:
+		return 1
+	}
+
+	return 0
 }
 
 func (state *Deflate) Compress(src []byte, dst []byte) (in uint32, out uint32, res uint32) {
@@ -90,10 +113,21 @@ func (state *Deflate) Compress(src []byte, dst []byte) (in uint32, out uint32, r
 	state.output = dst[:]
 
 	if res == 1 {
-		in, out, res = writeStoredBlock(state.input, state.output)
+		result := state.writeStoredDeflateHeader(true)
+
+		if result != 0 {
+			return in, uint32(len(dst) - len(state.output)), result
+		}
+
+		bytesIn, bytesOut, result := writeStoredBlock(state.input, state.output)
+
+		state.input = state.input[bytesIn:]
+		state.output = state.output[bytesOut:]
+
+		res = result
 	}
 
-	return in, out, res
+	return uint32(len(src) - len(state.input)), uint32(len(dst) - len(state.output)), res
 }
 
 func (state *Deflate) Decompress(src []byte, dst []byte) (in uint32, out uint32, res uint32) {
@@ -105,11 +139,23 @@ func (state *Deflate) Decompress(src []byte, dst []byte) (in uint32, out uint32,
 	state.output = dst[:]
 
 	for int(in) < len(src) && !state.eosFound {
-		in, out, res = state.readHeader()
+		res = state.readHeader()
+
+		if res != 0 {
+			return in, out, res
+		}
 
 		if state.storedBlock {
-			in, out, res = readStoredBlock(state.input, state.output)
-			state.eosFound = true
+			bytesIn, bytesOut, result := readStoredBlock(state.input, state.output)
+			state.eosFound = state.blockFinal
+
+			if result != 0 {
+				return in, out, result
+			}
+
+			state.input = state.input[bytesIn:]
+			state.output = state.output[bytesOut:]
+
 		} else {
 			// to implement
 		}
@@ -119,5 +165,5 @@ func (state *Deflate) Decompress(src []byte, dst []byte) (in uint32, out uint32,
 		}
 	}
 
-	return in, out, res
+	return uint32(len(src) - len(state.input)), uint32(len(dst) - len(state.output)), res
 }
