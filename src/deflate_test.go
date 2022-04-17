@@ -138,7 +138,7 @@ func TestDeflateDynamic(t *testing.T) {
 }
 
 func TestDeflate(t *testing.T) {
-	testData := lzGenerator(96, 0.25)
+	testData := lzGenerator(math.MaxUint16*2, 0.25)
 	compressedData := make([]byte, len(testData)*2)
 	outputData := make([]byte, len(testData))
 

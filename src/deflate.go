@@ -16,7 +16,7 @@ type Deflate struct {
 }
 
 func writeStoredBlock(src []byte, dst []byte) (in uint32, out uint32, res uint32) {
-	if len(src) > math.MaxInt16 {
+	if len(src) > math.MaxUint16 {
 		return 0, 0, 1
 	}
 
@@ -37,20 +37,36 @@ func writeStoredBlock(src []byte, dst []byte) (in uint32, out uint32, res uint32
 
 	copy(outBlock, src)
 
-	return uint32(lenV), uint32(4 + lenV), 0
+	return uint32(lenV), uint32(lenV) + 4, 0
 }
 
 func (state *Deflate) writeDeflateStoredBlocks() uint32 {
-	result := state.writeStoredDeflateHeader(true)
+	var chunk []byte
 
-	if result != 0 {
-		return result
+	for len(state.input) > 0 {
+		finalBlock := len(state.input) <= math.MaxUint16
+
+		result := state.writeStoredDeflateHeader(finalBlock)
+
+		if result != 0 {
+			return result
+		}
+
+		if finalBlock {
+			chunk = state.input
+		} else {
+			chunk = state.input[:math.MaxUint16]
+		}
+
+		bytesIn, bytesOut, result := writeStoredBlock(chunk, state.output)
+
+		if result != 0 {
+			return result
+		}
+
+		state.input = state.input[bytesIn:]
+		state.output = state.output[bytesOut:]
 	}
-
-	bytesIn, bytesOut, result := writeStoredBlock(state.input, state.output)
-
-	state.input = state.input[bytesIn:]
-	state.output = state.output[bytesOut:]
 
 	return 0
 }
@@ -80,7 +96,7 @@ func readStoredBlock(src []byte, dst []byte) (in uint32, out uint32, res uint32)
 
 	copy(outByteBlock, inByteBlock)
 
-	return uint32(4 + lenV), uint32(lenV), 0
+	return uint32(lenV) + 4, uint32(lenV), 0
 }
 
 func (state *Deflate) writeStoredDeflateHeader(isFinalBlock bool) (res uint32) {
@@ -151,7 +167,6 @@ func (state *Deflate) Decompress(src []byte, dst []byte) (in uint32, out uint32,
 
 		if state.storedBlock {
 			bytesIn, bytesOut, result := readStoredBlock(state.input, state.output)
-			state.eosFound = state.blockFinal
 
 			if result != 0 {
 				return in, out, result
@@ -159,6 +174,7 @@ func (state *Deflate) Decompress(src []byte, dst []byte) (in uint32, out uint32,
 
 			state.input = state.input[bytesIn:]
 			state.output = state.output[bytesOut:]
+			state.eosFound = state.blockFinal
 
 		} else {
 			// to implement
