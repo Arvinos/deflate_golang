@@ -1,4 +1,4 @@
-package go_deflate
+package deflate_golang
 
 import "math"
 
